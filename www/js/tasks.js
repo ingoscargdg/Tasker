@@ -24,12 +24,20 @@ var SearchBar = React.createClass(
 });
 
 var TaskListItem = React.createClass(
-{   render: function ()
+{
+    onClickEvent:function()
+    {
+      taskservice.getTask(this.props.task).done(function(url) 
+      {
+        console.log(url);
+      }.bind(this));  
+    },
+    render: function ()
     {
         return (
-            <li className="table-view-cell media" >
-                <a href={"/" + "Take_CustomerOrder"}>
-                    {this.props.task.task}
+            <li className="table-view-cell media" onClick = {this.onClickEvent}>
+              <a href={"/" + this.props.task.use}> 
+                      {this.props.task.task}
                 <p>ID: {this.props.task.id}</p>
               </a>
             </li>
@@ -64,7 +72,8 @@ var HomePage = React.createClass(
 });
 
 
-var App = React.createClass({
+var App = React.createClass(
+{
     mixins: [PageSlider],
     getInitialState: function()
    {
@@ -85,7 +94,8 @@ var App = React.createClass({
                 pages: [<HomePage key="list" searchHandler={this.searchHandler} searchKey={searchKey} tasks={tasks}/>]});
             }.bind(this));
     },
-    componentDidMount: function() {
+    componentDidMount: function() 
+    {
       taskservice.findByName('','task').done(function(tasks) {
             this.setState({
                 tasks: tasks,

@@ -18,67 +18,80 @@ webpack(config, function(err, stats) {
 
 //Se declara arreglos JSON(hard code)
 var EventTaskRole = {
-                     'CustomerOrder_New':{'action':'Take_CustomerOrder','role':'sales-rep', "use" : "Create_CustomerOrder"},
-                     'CustomerOrder_Alert':{'action':'Notify_CustomerAlert','role':'customerService-rep', "use" : " Detail_CustomerOrder"}
+                     'CustomerOrder_NEW':{'action':'Take_CustomerOrder','role':'sales-rep', "use" : "Create_CustomerOrder", "out":"CustomerOrder_TAKEN"},
+                     'CustomerOrder_TAKEN':{'action':'Charge_CustomerOrder','role':'accounting-clerk', "use" : "BankCreditApproval","out":"CustomerOrder_CHARGED"},
+                     'CustomerOrder_Alert':{'action':'Notify_CustomerAlert','role':'customerService-rep', "use" : " Detail_CustomerOrder","out":"CustomerOrder_NOTIFIED"}
                     };
 var Actor_Role = [{'actor':'JuanHdzL','role':'phone-opr'},
                   {'actor':'RocioTamezJ','role':'sales-rep'},
                   {'actor':'AlbertoAzuaraM','role':'accounting-clerk'},
                   {'actor':'JoseMiguelFariasH','role':'warehouse-clerk'}];
-var Event_Role = [{'id': 1,'event':'CustomerOrder_New','role':'phone-opr'}];
+var Event_Role = [{'id': 1,'event':'CustomerOrder_NEW','role':'phone-opr'},{'id': 2,'event':'ods','role':'sales-rep'}];
 //------------------------------------------------------------------------------------------------------------------------------
 
 var issuedTask = [];
 var CustomerOrder = [];
+var timeTaskTaken = [];
 
-//funcion para obtener el actor o actores a partir del rol especifico
-function actor(role){ role = role||'';
+//---------------------------------------------------------------------------------------------------------------------------------
+//funciones para manipulacion de tareas roles y actores
+//---------------------------------------------------------------------------------------------------------------------------------
+
+function ActorByRole(role){ role = role||'';
    if(role === ''){ return _.pluck(Actor_Role,'actor');}
    else{return _.pluck(_.filter(Actor_Role,{role:role}),'actor');}
 };
-//funcion que obtiene un arreglo de strings con los roles para el actor que esta como parametro
-function roles(actorName){ actorName = actorName || '';
+//funcion que obtiene los roles para el actor que esta como parametro
+function RolsByActor(actorName){ actorName = actorName || '';
  if (actorName ===''){return _.pluck(Actor_Role,'role');}
  else{return _.pluck(_.filter(Actor_Role,{actor:actorName}),'role');}
 };
-//funcion que obtiene un arreglo de los eventos para el actor respecto a su rol
-function events_role(actorName){return roles(actorName).map(function(items){ return _.filter(Event_Role,{role:items}) })};
+//funcion que obtiene  los eventos para el actor respecto a su rol
+function events_role(actorName){return RolsByActor(actorName).map(function(items){ return _.filter(Event_Role,{role:items}); })};
 
+//funcion que obtiene las tareas por realizar de un actor determinado
+function TaskByActor(actor){ actor = actor||'';
+   if(actor === ''){ return issuedTask; }
+   else{return issuedTask;}
+};
 //---------------------------------------------------------------------------------------------------------------------------------
 //funciones para devolver el conjunto de datos 
 //---------------------------------------------------------------------------------------------------------------------------------
 
-var getEvents = function (request, reply)
+var Events = function (request, reply)
 {
-    var event = request.query.event;
-    var username = request.query.username;
-    var resultEvents = _.flatten(events_role(request.query.username));
-    if (event)
-    {reply(resultEvents.filter(function(e)
-        { return (e.event).toLowerCase().indexOf(event.toLowerCase()) > -1; }));
-    }
-    else { return reply(resultEvents); }
-};
-
-var getEventsBy = function (request, reply)
-{
-    console.log(request.query);
-    if(request.params.actor)
+  //console.log(request.params);
+  //console.log(request.query);
+      if(request.params.actor)
       { 
-          if(request.query.format)
-            { if (request.query.format === 'App'){reply.file("./www/events.html")}}
-          return reply(_.flatten(events_role(request.params.actor)) );
+        if (Actor_Role === undefined) //modifica esta validacion para comprobar existencia de usuario
+        { return reply('The actor not exists'); }
+        if(request.query)
+        { 
+          if (request.query.format === 'App'){return reply.file("./www/events.html");}
+          else {return reply('The page was not found').code(404);}
+        }
+        else 
+        { 
+          var Replyevents = _.flatten(events_role(request.params.actor)); 
+          if(Replyevents.length === 0)
+            {return reply(request.params.actor + " not events" );}
+          else
+            {return reply(Replyevents);}
+        }
       }
       return reply(_.flatten(events_role('')) );
 };
 
-var getTasks = function (request, reply)
-{     var task = request.query.task;
-      if (task)
-      { reply(issuedTask.filter(function(e)
-        { return (e.task).toLowerCase().indexOf(task.toLowerCase()) > -1; }));
+var Tasks = function (request, reply)
+{
+    if(request.params.actor)
+      { 
+          if(request.query.format)
+            { if (request.query.format === 'App'){return reply.file("./www/tasks.html");}}
+          return reply(TaskByActor(request.params.actor));
       }
-      else { return reply(issuedTask); }
+      return reply(issuedTask);
 };
 
 var getProducts = function (request, reply)
@@ -125,16 +138,42 @@ var getCustomerByID = function(request, reply)
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------
-// FUNCIONES PARA GUARFAR DATOS
+// Funciones para guardar los datos
 //---------------------------------------------------------------------------------------------------------------------------------
-var OrderID = 0;
 var CustomerOrder_TAKEN = function (request, reply) 
 {
-	OrderID = OrderID + 1;
-	ID = {"OrderID" : OrderID};
-	CustomerOrder = request.payload;
-	//CustomerOrder.push(request.payload);
-	//console.log(JSON.stringify(_.merge((ID),CustomerOrder)));
+	CustomerOrder.push(request.payload);
+  sendTask(request.payload.out);
+  console.log(request.payload.out);
+};
+
+var getTask = function (request, reply) 
+{
+   console.log(request.payload);
+   console.log(request.payload.id);
+   //console.log(_.find(issuedTask,function(a){  return a.id === request.payload.id}) ); 
+   console.log(request.payload);
+};
+
+var sendTask = function(task)
+{
+  console.log(task);
+    Id_Task ++;
+  //apartir del evento que recibe node, se busca en Evento-Tarea-Role
+  //var eventReceived = task.event;
+  var actorName = ActorByRole(EventTaskRole[task].role)[0];
+  //La tarea que se emite al usuario especifico
+  var fecha = new Date();
+  var emitTask = {"id": Id_Task, 
+                  "role": EventTaskRole[eventReceived].role, 
+                  "task": EventTaskRole[eventReceived].action,
+                  "use": EventTaskRole[eventReceived].action,
+                  "actor": actorName,
+                  "TimeCreate" : fecha,
+                  "TimeTaken" : undefined,
+                  "TimeFinish" : undefined};
+    issuedTask.push(emitTask); //lo agregamos a las tareas existentes
+  if(usernames[actorName]){ socket.broadcast.to(usernames[actorName].socket).emit('sendtask', emitTask);}
 };
 
 //---------------------------------------------------------------------------------------------------------------------------------           
@@ -151,12 +190,18 @@ var ioHandler = function (socket)
            Id_Task ++;
            //apartir del evento que recibe node, se busca en Evento-Tarea-Role
            var eventReceived = task.event;
+           var actorName = ActorByRole(EventTaskRole[eventReceived].role)[0];
            //La tarea que se emite al usuario especifico
+           var fecha = new Date();
            var emitTask = {"id": Id_Task, 
                            "role": EventTaskRole[eventReceived].role, 
-                           "task": EventTaskRole[eventReceived].action};
+                           "task": EventTaskRole[eventReceived].action,
+                           "use": EventTaskRole[eventReceived].action,
+                           "actor": actorName,
+                           "TimeCreate" : fecha,
+                           "TimeTaken" : undefined,
+                           "TimeFinish" : undefined};
            issuedTask.push(emitTask); //lo agregamos a las tareas existentes
-           var actorName = actor(EventTaskRole[eventReceived].role)[0];
            if(usernames[actorName])
             { socket.broadcast.to(usernames[actorName].socket).emit('sendtask', emitTask);}
         });
@@ -176,21 +221,26 @@ var ioHandler = function (socket)
 //server.views({
 //    engines: {
 //        html: require('handlebars')
+
 //    },
-//    path: Path.join(__dirname, 'www/views')
+//     compileMode: 'async', // global setting
+//    path: Path.join(__dirname, 'www')
 //});
-server.route({ method: 'GET', path: '/events',  handler: function(request, reply) { reply.file("./www/events.html");  }}); //--CAMBIAR ESTA RU
+
+//server.route({ method: 'GET', path: '/events',  handler: function(request, reply) { reply.file("./www/events.html");  }}); //--CAMBIAR ESTA RU
 server.route({ method: 'POST', path: '/CustomerOrder_TAKEN',handler: CustomerOrder_TAKEN }  );
-//server.route({ method: 'GET', path: '/events/{actor?}',handler: getEventsBy }); //--CAMBIAR ESTA RU
+server.route({ method: 'POST', path: '/getTask',handler: getTask} );
+server.route({ method: 'GET', path: '/events/{actor?}',handler: Events }); 
+server.route({ method: 'GET', path: '/tasks/{actor?}',  handler: Tasks });
 
 server.route({ method: 'GET', path: '/getCustomer',handler: getCustomer } );
 server.route({ method: 'GET', path: '/getCustomerByID',handler: getCustomerByID } );
 server.route({ method: 'GET', path: '/getProducts',handler: getProducts } );
-server.route({ method: 'GET', path: '/gettasks',handler: getTasks }  );
-server.route({ method: 'GET', path: '/getevents',handler: getEvents } );
-server.route({ method: 'GET', path: '/styles/{param*}', handler: {  directory: { path: './www/styles', listing: false, index: true }  } });
-server.route({ method: 'GET', path: '/{param*}',handler: { directory:  { path: './www', listing: false, index: true }   } });
-server.route({ method: 'GET', path: '/tasks',  handler: function(request, reply) { reply.file("./www/tasks.html");  }});
+//server.route({ method: 'GET', path: '/gettasks',handler: getTasks }  );
+//server.route({ method: 'GET', path: '/getevents',handler: getEvents } );
 server.route({ method: 'GET', path: '/Take_CustomerOrder',  handler: function(request, reply) { reply.file("./www/customerOrder.html");  }});
+server.route({ method: 'GET', path: '/tasks/{param*}',handler: { directory:  { path: 'www', listing: false, index: true }   } });
+server.route({ method: 'GET', path: '/events/{param*}',handler: { directory:  { path: 'www', listing: false, index: true }   } });
+server.route({ method: 'GET', path: '/{param*}',handler: { directory:  { path: 'www', listing: false, index: true }   } });
 server.start(function () {console.log("Server starter" + __dirname, server.info.uri); })
 

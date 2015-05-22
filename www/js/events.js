@@ -31,7 +31,6 @@ var TaskListItem = React.createClass(
     {return (
             <li className="table-view-cell media" onClick = {this.SendTaskEvent} >
                     {this.props.task.event}
-
             </li>
             );
     }
@@ -78,7 +77,7 @@ var App = React.createClass({
         }
     },
     searchHandler: function(searchKey) {
-        taskevents.findByName(searchKey,usuaridefault).done(function(tasks) {
+        eventsService.findByName(searchKey,usuaridefault).done(function(tasks) {
             this.setState({
                 searchKey:searchKey,
                 tasks: tasks,
@@ -86,7 +85,7 @@ var App = React.createClass({
         }.bind(this));
     },
     componentDidMount: function() {
-        taskevents.findByName('',usuaridefault).done(function(tasks) {
+        eventsService.findByName('',usuaridefault).done(function(tasks) {
             this.setState({
                 tasks: tasks,
                 pages: [<HomePage searchHandler={this.searchHandler} tasks={tasks}/>]});
