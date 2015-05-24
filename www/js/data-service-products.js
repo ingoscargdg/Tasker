@@ -1,4 +1,4 @@
-var url = "http://192.168.1.121:8000";
+var url = "http://192.168.1.69:8000";
 
 
 productsService = (function ()

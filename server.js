@@ -16,7 +16,10 @@ webpack(config, function(err, stats) {
     console.log(err = err||'not error');
 });
 
+//---------------------------------------------------------------------------------------------------------------------------------
 //Se declara arreglos JSON(hard code)
+//---------------------------------------------------------------------------------------------------------------------------------
+
 var EventTaskRole = {
                      'CustomerOrder_NEW':{'action':'Take_CustomerOrder','role':'sales-rep', "use" : "Create_CustomerOrder", "out":"CustomerOrder_TAKEN"},
                      'CustomerOrder_TAKEN':{'action':'Charge_CustomerOrder','role':'accounting-clerk', "use" : "BankCreditApproval","out":"CustomerOrder_CHARGED"},
@@ -51,8 +54,8 @@ function events_role(actorName){return RolsByActor(actorName).map(function(items
 
 //funcion que obtiene las tareas por realizar de un actor determinado
 function TaskByActor(actor){ actor = actor||'';
-   if(actor === ''){ return issuedTask; }
-   else{return issuedTask;}
+   if(actor === ''){ return issuedTask;}
+   else{return  _.filter(issuedTask,{ actor:actor });}
 };
 //---------------------------------------------------------------------------------------------------------------------------------
 //funciones para devolver el conjunto de datos 
@@ -60,24 +63,25 @@ function TaskByActor(actor){ actor = actor||'';
 
 var Events = function (request, reply)
 {
-  //console.log(request.params);
-  //console.log(request.query);
       if(request.params.actor)
-      { 
-        if (Actor_Role === undefined) //modifica esta validacion para comprobar existencia de usuario
+      {
+        if(existsElement(Actor_Role,'actor',request.params.actor) === false) //comprobar existencia de usuario
         { return reply('The actor not exists'); }
-        if(request.query)
-        { 
+        if(request.query.format)
+        {
           if (request.query.format === 'App'){return reply.file("./www/events.html");}
           else {return reply('The page was not found').code(404);}
         }
+        else if(request.query.name)
+        {
+            { return reply(_.flatten(events_role(request.params.actor)).filter(function(e){ return (e.event).toLowerCase().indexOf(request.query.name.toLowerCase()) > -1; })); }
+        }
         else 
         { 
-          var Replyevents = _.flatten(events_role(request.params.actor)); 
-          if(Replyevents.length === 0)
+          if(_.flatten(events_role(request.params.actor)).length === 0)
             {return reply(request.params.actor + " not events" );}
           else
-            {return reply(Replyevents);}
+            {return reply(_.flatten(events_role(request.params.actor)) );}
         }
       }
       return reply(_.flatten(events_role('')) );
@@ -85,14 +89,32 @@ var Events = function (request, reply)
 
 var Tasks = function (request, reply)
 {
-    if(request.params.actor)
-      { 
-          if(request.query.format)
-            { if (request.query.format === 'App'){return reply.file("./www/tasks.html");}}
-          return reply(TaskByActor(request.params.actor));
+  //console.log(request.params);
+  //console.log(request.query);
+      if(request.params.actor)
+      {
+        if(existsElement(Actor_Role,'actor',request.params.actor) === false) //comprobar existencia de usuario
+        { return reply('The actor not exists'); }
+        if(request.query.format)
+        {
+          if (request.query.format === 'App'){return reply.file("./www/tasks.html");}
+          else {return reply('The page was not found').code(404);}
+        }
+        else if(request.query.name)
+        {
+            { return reply(_.flatten(TaskByActor(request.params.actor)).filter(function(e){ return (e.task).toLowerCase().indexOf(request.query.name.toLowerCase()) > -1; })); }
+        }
+        else 
+        { 
+          if(_.flatten(TaskByActor(request.params.actor)).length === 0)
+            {return reply(request.params.actor + " not tasks" );}
+          else
+            {return reply(_.flatten(TaskByActor(request.params.actor)) );}
+        }
       }
-      return reply(issuedTask);
+      return reply(TaskByActor(''));
 };
+
 
 var getProducts = function (request, reply)
 { var name = request.query.name;
@@ -155,55 +177,50 @@ var getTask = function (request, reply)
    console.log(request.payload);
 };
 
-var sendTask = function(task)
+//---------------------------------------------------------------------------------------------------------------------------------           
+//Funciones generales
+//---------------------------------------------------------------------------------------------------------------------------------           
+
+//arr: array sobre el cual se busca
+//item: campo sobre el cual se encuentra
+//element: elemento a buscar
+var existsElement = function(arr,item,element)
 {
-  console.log(task);
-    Id_Task ++;
-  //apartir del evento que recibe node, se busca en Evento-Tarea-Role
-  //var eventReceived = task.event;
-  var actorName = ActorByRole(EventTaskRole[task].role)[0];
+    if(_.contains(_.pluck(arr, item), element))
+    { return true;}
+      return false;
+};
+
+var Id_Task = 0;
+var sendTask = function(task)
+{   
+  Id_Task ++;
+  //se buscar el actor de acuerdo a su role para realizar la siguiente tarea
+  var actorName = ActorByRole(EventTaskRole[task.event].role)[0];
   //La tarea que se emite al usuario especifico
   var fecha = new Date();
   var emitTask = {"id": Id_Task, 
-                  "role": EventTaskRole[eventReceived].role, 
-                  "task": EventTaskRole[eventReceived].action,
-                  "use": EventTaskRole[eventReceived].action,
+                  "role": EventTaskRole[task.event].role, 
+                  "task": EventTaskRole[task.event].action,
+                  "use": EventTaskRole[task.event].use,
                   "actor": actorName,
                   "TimeCreate" : fecha,
                   "TimeTaken" : undefined,
                   "TimeFinish" : undefined};
-    issuedTask.push(emitTask); //lo agregamos a las tareas existentes
+  issuedTask.push(emitTask); //lo agregamos a las tareas existentes
   if(usernames[actorName]){ socket.broadcast.to(usernames[actorName].socket).emit('sendtask', emitTask);}
 };
 
 //---------------------------------------------------------------------------------------------------------------------------------           
-server.connection({ host: '192.168.1.121', port: 8000  },{ cors: true }, { connections: { routes: { files: {relativeTo: Path.join(__dirname, 'www')} } } });
+server.connection({ host: '192.168.1.69', port: 8000  },{ cors: true }, { connections: { routes: { files: {relativeTo: Path.join(__dirname, 'www')} } } });
 
-var Id_Task = 0;
 var socketio = require("socket.io")(server.listener)
 var ioHandler = function (socket)
     {
         var addedUser = false;
         socket.on('sendtask',function(task)
         {
-        //aqui debe ir la busqueda del actor de acuerdo a su role para realizar la siguiente tarea
-           Id_Task ++;
-           //apartir del evento que recibe node, se busca en Evento-Tarea-Role
-           var eventReceived = task.event;
-           var actorName = ActorByRole(EventTaskRole[eventReceived].role)[0];
-           //La tarea que se emite al usuario especifico
-           var fecha = new Date();
-           var emitTask = {"id": Id_Task, 
-                           "role": EventTaskRole[eventReceived].role, 
-                           "task": EventTaskRole[eventReceived].action,
-                           "use": EventTaskRole[eventReceived].action,
-                           "actor": actorName,
-                           "TimeCreate" : fecha,
-                           "TimeTaken" : undefined,
-                           "TimeFinish" : undefined};
-           issuedTask.push(emitTask); //lo agregamos a las tareas existentes
-           if(usernames[actorName])
-            { socket.broadcast.to(usernames[actorName].socket).emit('sendtask', emitTask);}
+            sendTask(task);
         });
 
         socket.on('adduser',function (username)

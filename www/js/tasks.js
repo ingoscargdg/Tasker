@@ -3,7 +3,8 @@
  */
 
 var socket = io.connect();
-socket.emit('adduser', 'RocioTamezJ');
+var userdefault = 'RocioTamezJ'
+socket.emit('adduser', userdefault);
 
 var Header = React.createClass(
 {  render: function ()
@@ -87,7 +88,7 @@ var App = React.createClass(
     },
     searchHandler: function(searchKey)
     {
-        taskservice.findByName(searchKey,'task').done(function(tasks) {
+        taskservice.findByName(searchKey,userdefault).done(function(tasks) {
             this.setState({
                 searchKey:searchKey,
                 tasks: tasks,
@@ -96,7 +97,7 @@ var App = React.createClass(
     },
     componentDidMount: function() 
     {
-      taskservice.findByName('','task').done(function(tasks) {
+      taskservice.findByName('',userdefault).done(function(tasks) {
             this.setState({
                 tasks: tasks,
                 pages: [<HomePage searchHandler={this.searchHandler} tasks={tasks}/>]});
