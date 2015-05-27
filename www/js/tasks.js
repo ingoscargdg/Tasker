@@ -1,7 +1,6 @@
 /**
  * @jsx React.DOM
  */
-
 var socket = io.connect();
 var userdefault = 'RocioTamezJ'
 socket.emit('adduser', userdefault);
@@ -24,23 +23,29 @@ var SearchBar = React.createClass(
   }
 });
 
+//var styleNew = {color:'green'};
+var styleRun = {color:'red'};
+var styleFinish = {color:'gray'};
+var styleNew = { color: 'green'}; 
+//var styleNew = { color: 'green', backgroundColor: 'red', fontSize: 50 }; 
+
 var TaskListItem = React.createClass(
 {
-    onClickEvent:function()
+
+    ondbClickEvent:function()
     {
-      taskservice.getTask(this.props.task).done(function(url) 
-      {
-        console.log(url);
-      }.bind(this));  
+      taskservice.getTask(this.props.task);
+      window.location ="/" + this.props.task.task + "?id=" + this.props.task.id;
     },
     render: function ()
     {
-        return (
-            <li className="table-view-cell media" onClick = {this.onClickEvent}>
-              <a href={"/" + this.props.task.use}> 
+        return ( 
+             <li className="table-view-cell media"
+                style={this.props.task.TimeFinish !== undefined ? styleFinish:this.props.task.TimeTaken!== undefined?styleRun:styleNew}  
+                onDoubleClick = {this.ondbClickEvent}>
                       {this.props.task.task}
-                <p>ID: {this.props.task.id}</p>
-              </a>
+                <p>{this.props.task.what}</p>
+                <p>ID:{this.props.task.id}</p>
             </li>
         );
     }

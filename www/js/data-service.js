@@ -6,7 +6,7 @@ taskservice = (function ()
   return {findByName: function(searchKey,username) 
           	{ return $.ajax({url: baseURL + "/" + "tasks/" + username , data: {name: searchKey}}); },
           getTask: function(data) 
-    	  	{ return $.ajax({url: url + "/" + "getTask",  type: "POST", data: data }); 
+    	  	{ return $.ajax({url: baseURL + "/" + "getTask",  type: "POST", data: data }); 
     	  	}
       	 };
 }());

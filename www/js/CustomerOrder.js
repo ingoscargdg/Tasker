@@ -214,23 +214,24 @@ var App = React.createClass(
     {
         this.state.products.push(ItemsProducts[0]);
         this.setState();
-        console.log(ItemsProducts);
     },
     SaveCustomerOrder: function(event)
     {
+      var regex = /[?&]([^=#]+)=([^&#]*)/g,
+      url = window.location.href,
+      params = {},
+      match;
+      while(match = regex.exec(url)) {params[match[1]] = match[2]; }
       var dia = new Date();
       var items = JSON.stringify(this.state.products);
-      var customerOrder = {"date": dia , "customer": this.state.customer, "shipping": this.state.Addrees , "items" : items};
-      var product = JSON.stringify(customerOrder);
-      $.ajax({url: "/CustomerOrder_TAKEN", type: "POST", data: product,
+      var customerOrder = { id: params.id,"date": dia , "customer": this.state.customer, "shipping": this.state.Addrees , "items" : items};
+      $.ajax({url: "/CustomerOrder_TAKEN", type: "POST", data: JSON.stringify(customerOrder),
         contentType:"application/json; charset=utf-8", dataType:"json"});
     },
     CustomeronChange: function(customer)
     {
        customerService.findById(customer).done(function(customers)
         {
-          console.log(customers);
-          //this.setState({ searchKey: '' });
             this.setState({customer:customer, Addrees: customers[0].Direccion, Rfc: customers[0].Rfc , City: customers[0].Ciudad });
         }.bind(this));
     },
@@ -268,4 +269,3 @@ var App = React.createClass(
 });
                       //<SearchBar searchKey={this.props.searchKey} searchHandler={this.searchHandler}/>
 React.render(<App/>, document.body);
-

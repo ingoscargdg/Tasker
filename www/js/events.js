@@ -1,7 +1,6 @@
 /**
  * @jsx React.DOM
  */
-
 var socket = io.connect();
 var usuaridefault = 'JuanHdzL'
 socket.emit('adduser', usuaridefault);
@@ -38,7 +37,6 @@ var TaskListItem = React.createClass(
 
 var TaskList = React.createClass(
 {
-
     render: function () {
         var items = this.props.tasks.map(function (task) {
             return (
