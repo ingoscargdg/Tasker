@@ -10,54 +10,67 @@ var config = require('./webpack.config.js');
 var events = require('events');
 var loki = require("lokijs");
 var db = new loki('loki.json');
+var fs=require("fs"); 
+var Converter=require("csvtojson").core.Converter;
 
 webpack(config, function(err, stats) {
     console.log(err = err||'not error');
 });
-
 //---------------------------------------------------------------------------------------------------------------------------------
 //Inicializacion del server
 //---------------------------------------------------------------------------------------------------------------------------------           
 var i = 0;
 var socketServer;
-server.connection({ host: '192.168.1.107', port: 8000  },{ cors: true }, { connections: { routes: { files: {relativeTo: Path.join(__dirname, 'www')} } } });
+server.connection({ host: '192.168.56.1', port: 8000  },{ cors: true }, { connections: { routes: { files: {relativeTo: Path.join(__dirname, 'www')} } } });
 var serverEmitter = new events.EventEmitter();
 var socketio = require("socket.io")(server.listener)
 var ioHandler = function (socket)
-    {   socketServer = socket;
-        var addedUser = false;
-        socket.on('sendtask',function(task)
-        {   sendTask(socket,task);   });
-
-        socket.on('adduser',function (username)
-        {
-        //if(usernames[username]){ return;}
-            socket.username = username;
-            usernames[username] = username;
-            ++numUsers;
-            addedUser = true;
-            usernames[username] = {"socket": socket.id , ipCliente: socket.client.conn.remoteAddress };
-        });
-    }
-    socketio.on("connection", ioHandler);
+{ socketServer = socket;
+  var addedUser = false;
+  socket.on('sendtask',function(task)
+  { sendTask(socket,task);   });
+    socket.on('adduser',function (username)
+    {
+      socket.username = username;
+      usernames[username] = username;
+      ++numUsers;
+      addedUser = true;
+      usernames[username] = {"socket": socket.id , ipCliente: socket.client.conn.remoteAddress 
+    };
+  });
+}
+socketio.on("connection", ioHandler);
 
 //---------------------------------------------------------------------------------------------------------------------------------
 //Se declara arreglos JSON(hard code)
 //---------------------------------------------------------------------------------------------------------------------------------
+function ReadFilesCsv(path,file,Collection)
+{
+  var csvFileName = path + file;
+  var csvConverter = new Converter();
+  csvConverter.on("end_parsed",function(jsonObj) {  console.log('');});
+  fs.createReadStream(csvFileName).pipe(csvConverter);
+  console.log(db.getCollection(Collection));
+}
 
-var EventTaskRole = {'CustomerOrder_NEW':{'action':'Take_CustomerOrder','what':'Tomar orden del cliente' ,'role':'sales-rep', 'use' : 'reate_CustomerOrder', 'out':'CustomerOrder_TAKEN','how':''},
+var Actor_Role = db.addCollection('Actor_Role');
+    Actor_Role.insert({'actor':'JuanHdzL','role':'phone-opr'});
+    Actor_Role.insert({'actor':'RocioTamezJ','role':'sales-rep'});
+    Actor_Role.insert({'actor':'JuanHdzL','role':'accounting-clerk'});
+    Actor_Role.insert({'actor':'JoseMiguelFariasH','role':'warehouse-clerk'});
+
+var EventTaskRole = db.addCollection('EventTaskRole');
+    EventTaskRole.insert({'CustomerOrder_NEW':{'action':'Take_CustomerOrder','what':'Tomar orden del cliente' ,'role':'sales-rep', 'use' : 'reate_CustomerOrder', 'out':'CustomerOrder_TAKEN','how':''},
                      'CustomerOrder_TAKEN':{'action':'Charge_CustomerOrder','what':'Cargar orden del cliente','role':'accounting-clerk', 'use' : 'BankCreditApproval','out':'CustomerOrder_CHARGED','how':''},
                      'CustomerOrder_Alert':{'action':'Notify_CustomerAlert','what':'Notificar credito del cliente','role':'customerService-rep', 'use' : 'Detail_CustomerOrder','out':'CustomerOrder_NOTIFIED','how':''}
-                    };
+                    });
 
-var Actor_Role    =[{'actor':'JuanHdzL','role':'phone-opr'},
-                    {'actor':'RocioTamezJ','role':'sales-rep'},
-                    {'actor':'RocioTamezJ','role':'accounting-clerk'},
-                    {'actor':'JoseMiguelFariasH','role':'warehouse-clerk'}
-                    ];
+
+ReadFilesCsv(__dirname + '/sys/','ActorRole.csv','EventTaskRole');
 
 var Event_Role = db.addCollection('Event_Role');
-Event_Role.insert({id: 1 , event: 'CustomerOrder_NEW', role:'phone-opr'});
+    Event_Role.insert({id: 1 , event: 'CustomerOrder_NEW', role:'phone-opr'});
+
 
 var Products = db.addCollection('Products');
     Products.insert({ArticuloID:1, ClaveArticulo:'009MYZAZP600000012',Descripcion:'ZOCLO PZA 2.40M CHOC',CodigoBarras:'009MYZAZP600000012',Precio:25.0});
@@ -74,42 +87,46 @@ var Customer = db.addCollection('Customer');
     Customer.insert({ClienteID:'2', Nombre:'MIGUEL ANGEL  ORTIZ DELGADO',Direccion:'AV DE LAS ROSAS',NoExterior:'25',NoInterior:'2',Colonia:'',Ciudad:'EL RODEO',Estado:'IZTACALCO',Cp:'89000', Rfc:'EBU050302N73', Email:''});
     Customer.insert({ClienteID:'6', Nombre:'ALEJANDRO  HIDALGO ESPINOSA',Direccion:'AV DE LAS ROSAS',NoExterior:'10',NoInterior:'3',Colonia:'',Ciudad:'FRACC. JARDINES DE SAN MATEO',Estado:'IZTACALCO',Cp:'85000', Rfc:'OIDM620617EF7', Email:''});
 //------------------------------------------------------------------------------------------------------------------------------
-var issuedTask = [];
-var CustomerOrder = [];
-var timeTaskTaken = [];
+var issuedTask = db.addCollection('issuedTask');
+var CustomerOrder = db.addCollection('CustomerOrder');
 
 //---------------------------------------------------------------------------------------------------------------------------------
 //funciones para manipulacion de tareas roles y actores
 //---------------------------------------------------------------------------------------------------------------------------------
 function ActorByRole(role)
-{ role = role||'';
-  if(role === ''){ return _.pluck(Actor_Role,'actor');}
-  else{return _.pluck(_.filter(Actor_Role,{role:role}),'actor');}
+{ var data = Actor_Role.data;
+  role = role||'';
+  if(role === ''){ return _.pluck(data,'actor');}
+  else{return _.pluck(_.filter(data,{role:role}),'actor');}
 };
 
 //funcion que obtiene los roles para el actor que esta como parametro
 function RolsByActor(actorName)
-{ actorName = actorName || '';
-  if (actorName ===''){ return _.pluck(Actor_Role,'role'); }
-  else{return _.pluck(_.filter(Actor_Role,{actor:actorName}),'role');}
+{ var data = Actor_Role.data;
+  actorName = actorName || '';
+  if (actorName ===''){ return _.pluck(data,'role'); }
+  else{return _.pluck(_.filter(data,{actor:actorName}),'role');}
 };
 
 //funcion que obtiene  los eventos para el actor respecto a su rol
 function events_role(actorName){return RolsByActor(actorName).map(function(items){ return Event_Role.find({role:items}); })};
 
 //funcion que obtiene las tareas por realizar de un actor determinado
-function TaskByActor(actor){ actor = actor||'';
-   if(actor === ''){ return issuedTask;}
-   else{return  _.filter(issuedTask,{ actor:actor });}
+function TaskByActor(actor)
+{ var data = issuedTask.data;
+   actor = actor||'';
+   if(actor === ''){ return data;}
+   else{return  _.filter(data,{ actor:actor });}
 };
 //---------------------------------------------------------------------------------------------------------------------------------
 //funciones para devolver el conjunto de datos 
 //---------------------------------------------------------------------------------------------------------------------------------
 var Events = function (request, reply)
 {
+      var data = Actor_Role.data;
       if(request.params.actor)
       {
-        if(existsElement(Actor_Role,'actor',request.params.actor) === false) //comprobar existencia de usuario
+        if(existsElement(data,'actor',request.params.actor) === false) //comprobar existencia de usuario
         { return reply('The actor not exists'); }
         if(request.query.format)
         {
@@ -134,9 +151,10 @@ var Events = function (request, reply)
 
 var Tasks = function (request, reply)
 {
+      var data = Actor_Role.data;
       if(request.params.actor)
       {
-        if(existsElement(Actor_Role,'actor',request.params.actor) === false) //comprobar existencia de usuario
+        if(existsElement(data,'actor',request.params.actor) === false) //comprobar existencia de usuario
         { return reply('The actor not exists'); }
         if(request.query.format)
         {
@@ -185,7 +203,10 @@ var getCustomerByID = function(request, reply)
 var getTask = function (request, reply) 
 {
  var fecha = new Date();
- _.find(issuedTask,function(task){ return task.id == request.payload.id; })["TimeTaken"] = fecha;
+ var id = parseInt(request.payload.id);
+ var updateTask = issuedTask.find({'id':id});
+ updateTask[0].TimeTaken = fecha;
+ issuedTask.update(updateTask);
 };
 //---------------------------------------------------------------------------------------------------------------------------------           
 //Funciones generales
@@ -203,23 +224,24 @@ var existsElement = function(arr,item,element)
 var Id_Task = 0;
 var sendTask = function(socket,task)
 {   
+  var data = EventTaskRole.data[0];
   Id_Task ++;
   //se buscar el actor de acuerdo a su role para realizar la siguiente tarea
-  var actorName = ActorByRole(EventTaskRole[task.event].role)[0];
+  var actorName = ActorByRole(data[task.event].role)[0];
   //La tarea que se emite al usuario especifico
   var fecha = new Date();
   var emitTask = {'id': Id_Task, 
-                  'role': EventTaskRole[task.event].role, 
-                  'task': EventTaskRole[task.event].action,
-                  'use': EventTaskRole[task.event].use,
-                  'what':EventTaskRole[task.event].what,
-                  'how':EventTaskRole[task.event].how,
-                  'out':EventTaskRole[task.event].out,
+                  'role': data[task.event].role, 
+                  'task': data[task.event].action,
+                  'use': data[task.event].use,
+                  'what':data[task.event].what,
+                  'how':data[task.event].how,
+                  'out':data[task.event].out,
                   'actor': actorName,
                   'TimeCreate' : fecha,
                   'TimeTaken' : undefined,
                   'TimeFinish' : undefined};
-  issuedTask.push(emitTask); //lo agregamos a las tareas existentes
+  issuedTask.insert(emitTask);
   if(usernames[actorName]){ socket.broadcast.to(usernames[actorName].socket).emit('sendtask', emitTask);} 
   //if(usernames["RocioTamezJ"]){ socket.broadcast.to(usernames["RocioTamezJ"].socket).emit('sendtask', emitTask);}
 };
@@ -227,11 +249,16 @@ var sendTask = function(socket,task)
 var CustomerOrder_TAKEN = function (request, reply) 
 {
   var fecha = new Date();
-  _.find(issuedTask,function(task){ return task.id == request.payload.id; })["TimeFinish"] = fecha;
-  CustomerOrder.push(request.payload);
-  var eventOut = {"event":_.find(issuedTask,function(task){ return task.id == request.payload.id; })['out']};
+  var id = parseInt(request.payload.id);
+  var updateTask = issuedTask.find({'id':id});
+  updateTask[0].TimeTaken = fecha;
+  issuedTask.update(updateTask);
+  //_.find(issuedTask,function(task){ return task.id == request.payload.id; })["TimeFinish"] = fecha;
+  CustomerOrder.insert(request.payload);
+  var eventOut = {"event":updateTask[0].out};
   sendTask(socketServer,eventOut);
 };
+
 //--------------------------------------------º-------------------------------------------------------------------------------------           
 //Router
 //---------------------------------------------------------------------------------------------------------------------------------           
@@ -253,4 +280,4 @@ server.route({ method: 'GET', path: '/{param*}',handler: { directory:  { path: '
 //---------------------------------------------------------------------------------------------------------------------------------           
 //Inicializacion del server
 //---------------------------------------------------------------------------------------------------------------------------------           
-server.start(function () { console.log("Server starter" + __dirname, server.info.uri); })
+server.start(function () {console.log("Server starter " + __dirname, server.info.uri); })

@@ -126,16 +126,7 @@
 	          });
 	    }
 	});
-
-	var SearchBar = React.createClass(
-	{displayName: "SearchBar",  searchHandler: function() { this.props.searchHandler(this.refs.searchKey.getDOMNode().value); },
-	   render: function ()
-	  { return ( React.createElement("div", {className: "input-group input-group-sm"}, 
-	                React.createElement("input", {type: "search", className: "form-control", placeholder: "search", ref: "searchKey", onChange: this.searchHandler, value: this.props.searchKey})
-	            ));
-	  }
-	}); 
-	   
+	  
 	var GeneralControls =  React.createClass(
 	{displayName: "GeneralControls",
 	   render: function()
@@ -313,7 +304,6 @@
 	        );
 	    }
 	});
-	                      //<SearchBar searchKey={this.props.searchKey} searchHandler={this.searchHandler}/>
 	React.render(React.createElement(App, null), document.body);
 
 /***/ },

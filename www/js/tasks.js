@@ -2,8 +2,7 @@
  * @jsx React.DOM
  */
 var socket = io.connect();
-var userdefault = 'RocioTamezJ'
-socket.emit('adduser', userdefault);
+var userdefault;
 
 var Header = React.createClass(
 {  render: function ()
@@ -31,7 +30,6 @@ var styleNew = { color: 'green'};
 
 var TaskListItem = React.createClass(
 {
-
     ondbClickEvent:function()
     {
       taskservice.getTask(this.props.task);
@@ -77,7 +75,6 @@ var HomePage = React.createClass(
     }
 });
 
-
 var App = React.createClass(
 {
     mixins: [PageSlider],
@@ -93,6 +90,7 @@ var App = React.createClass(
     },
     searchHandler: function(searchKey)
     {
+      console.log(userdefault);
         taskservice.findByName(searchKey,userdefault).done(function(tasks) {
             this.setState({
                 searchKey:searchKey,
@@ -102,6 +100,9 @@ var App = React.createClass(
     },
     componentDidMount: function() 
     {
+      var pathArray = window.location.pathname.split( '/' );
+      userdefault = pathArray[pathArray.length-1];
+      socket.emit('adduser', userdefault);
       taskservice.findByName('',userdefault).done(function(tasks) {
             this.setState({
                 tasks: tasks,

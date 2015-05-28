@@ -80,16 +80,7 @@ var CustomerInfo = React.createClass({
           });
     }
 });
-
-var SearchBar = React.createClass(
-{  searchHandler: function() { this.props.searchHandler(this.refs.searchKey.getDOMNode().value); },
-   render: function ()
-  { return ( <div className="input-group input-group-sm">
-                <input type="search"  className="form-control" placeholder="search" ref="searchKey" onChange={this.searchHandler} value={this.props.searchKey}/>
-            </div>);
-  }
-}); 
-   
+  
 var GeneralControls =  React.createClass(
 {
    render: function()
@@ -267,5 +258,4 @@ var App = React.createClass(
         );
     }
 });
-                      //<SearchBar searchKey={this.props.searchKey} searchHandler={this.searchHandler}/>
 React.render(<App/>, document.body);
