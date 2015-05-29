@@ -2,7 +2,7 @@
 var Hapi = require("hapi");
 var Path = require('path');
 var server = new Hapi.Server();
-var usernames = {};
+var usernames = [];
 var numUsers = 0;
 var _ = require('lodash');
 var webpack = require("webpack");
@@ -12,31 +12,25 @@ var loki = require("lokijs");
 var db = new loki('loki.json');
 var fs=require("fs"); 
 var Converter=require("csvtojson").core.Converter;
+var CronJob = require('cron').CronJob;
 
-webpack(config, function(err, stats) {
-    console.log(err = err||'not error');
-});
+webpack(config, function(err, stats) {  console.log(err = err||'not error');  });
 //---------------------------------------------------------------------------------------------------------------------------------
 //Inicializacion del server
 //---------------------------------------------------------------------------------------------------------------------------------           
 var i = 0;
 var socketServer;
 server.connection({ host: '192.168.56.1', port: 8000  },{ cors: true }, { connections: { routes: { files: {relativeTo: Path.join(__dirname, 'www')} } } });
-var serverEmitter = new events.EventEmitter();
 var socketio = require("socket.io")(server.listener)
 var ioHandler = function (socket)
 { socketServer = socket;
   var addedUser = false;
-  socket.on('sendtask',function(task)
-  { sendTask(socket,task);   });
-    socket.on('adduser',function (username)
-    {
-      socket.username = username;
-      usernames[username] = username;
-      ++numUsers;
-      addedUser = true;
-      usernames[username] = {"socket": socket.id , ipCliente: socket.client.conn.remoteAddress 
-    };
+  socket.on('sendtask',function(task){ searchTask(task); });
+  socket.on('adduser',function (username)
+  { socket.username = username;;
+    ++numUsers;
+    addedUser = true;
+    usernames.push({ 'username': username ,'socketid':socket.id, 'ipCliente': socket.client.conn.remoteAddress });
   });
 }
 socketio.on("connection", ioHandler);
@@ -44,33 +38,41 @@ socketio.on("connection", ioHandler);
 //---------------------------------------------------------------------------------------------------------------------------------
 //Se declara arreglos JSON(hard code)
 //---------------------------------------------------------------------------------------------------------------------------------
+var Actor_Role = db.addCollection('Actor_Role');
+var Event_Role = db.addCollection('Event_Role');
+var EventTaskRole = db.addCollection('EventTaskRole');
+var Jobs = db.addCollection('Jobs');
+
 function ReadFilesCsv(path,file,Collection)
 {
   var csvFileName = path + file;
   var csvConverter = new Converter();
-  csvConverter.on("end_parsed",function(jsonObj) {  console.log('');});
-  fs.createReadStream(csvFileName).pipe(csvConverter);
-  console.log(db.getCollection(Collection));
+  csvConverter.on("end_parsed",function(jsonObj) {db.getCollection(Collection).insert(jsonObj);  });
+  var rw = fs.createReadStream(csvFileName,{encoding: 'utf-8'}).pipe(csvConverter);
+  rw.setEncoding('utf8');
 }
 
-var Actor_Role = db.addCollection('Actor_Role');
-    Actor_Role.insert({'actor':'JuanHdzL','role':'phone-opr'});
-    Actor_Role.insert({'actor':'RocioTamezJ','role':'sales-rep'});
-    Actor_Role.insert({'actor':'JuanHdzL','role':'accounting-clerk'});
-    Actor_Role.insert({'actor':'JoseMiguelFariasH','role':'warehouse-clerk'});
+function ReadFilesJobsCsv(path,file,Collection)
+{
+  var csvFileName = path + file;
+  var csvConverter = new Converter();
+  csvConverter.on("end_parsed",function(jsonObj) 
+  { 
+      new CronJob(jsonObj[0]['time'], function() 
+      { 
+        searchTask(jsonObj[0]);
+      }, function () {/* Funcion ejecutada cuando el job se detiene */ },
+      true, /* Inicia ahora el job */
+      'America/Mexico_City' /* zona. */
+    );
+  });
+  fs.createReadStream(csvFileName).pipe(csvConverter);
+}
 
-var EventTaskRole = db.addCollection('EventTaskRole');
-    EventTaskRole.insert({'CustomerOrder_NEW':{'action':'Take_CustomerOrder','what':'Tomar orden del cliente' ,'role':'sales-rep', 'use' : 'reate_CustomerOrder', 'out':'CustomerOrder_TAKEN','how':''},
-                     'CustomerOrder_TAKEN':{'action':'Charge_CustomerOrder','what':'Cargar orden del cliente','role':'accounting-clerk', 'use' : 'BankCreditApproval','out':'CustomerOrder_CHARGED','how':''},
-                     'CustomerOrder_Alert':{'action':'Notify_CustomerAlert','what':'Notificar credito del cliente','role':'customerService-rep', 'use' : 'Detail_CustomerOrder','out':'CustomerOrder_NOTIFIED','how':''}
-                    });
-
-
-ReadFilesCsv(__dirname + '/sys/','ActorRole.csv','EventTaskRole');
-
-var Event_Role = db.addCollection('Event_Role');
-    Event_Role.insert({id: 1 , event: 'CustomerOrder_NEW', role:'phone-opr'});
-
+ReadFilesCsv(__dirname + '/sys/def/','EventTaskRole.csv','EventTaskRole');
+ReadFilesCsv(__dirname + '/sys/def/','ActorRole.csv','Actor_Role');
+ReadFilesCsv(__dirname + '/sys/def/etc/','Event_Role.csv','Event_Role');
+ReadFilesJobsCsv(__dirname + '/sys/def/','Jobs.csv','Jobs');
 
 var Products = db.addCollection('Products');
     Products.insert({ArticuloID:1, ClaveArticulo:'009MYZAZP600000012',Descripcion:'ZOCLO PZA 2.40M CHOC',CodigoBarras:'009MYZAZP600000012',Precio:25.0});
@@ -89,7 +91,6 @@ var Customer = db.addCollection('Customer');
 //------------------------------------------------------------------------------------------------------------------------------
 var issuedTask = db.addCollection('issuedTask');
 var CustomerOrder = db.addCollection('CustomerOrder');
-
 //---------------------------------------------------------------------------------------------------------------------------------
 //funciones para manipulacion de tareas roles y actores
 //---------------------------------------------------------------------------------------------------------------------------------
@@ -195,7 +196,6 @@ var getCustomerByID = function(request, reply)
   var id = request.query.id;
   reply(Customer.find({ClienteID:id}));
 }
-
 //---------------------------------------------------------------------------------------------------------------------------------
 // Funciones para guardar los datos
 //---------------------------------------------------------------------------------------------------------------------------------
@@ -222,28 +222,35 @@ var existsElement = function(arr,item,element)
 };
 
 var Id_Task = 0;
-var sendTask = function(socket,task)
-{   
-  var data = EventTaskRole.data[0];
-  Id_Task ++;
-  //se buscar el actor de acuerdo a su role para realizar la siguiente tarea
-  var actorName = ActorByRole(data[task.event].role)[0];
-  //La tarea que se emite al usuario especifico
+var sendTask = function(event)
+{
+    Id_Task ++;
+    var fecha = new Date();
+    var actorName;
+    if(existsElement(Actor_Role.data,'actor',event.who) === true){ actorName = event.who;}
+    actorName = actorName || ActorByRole(event.who)[0];
+    
+    var emitTask = { 'id': Id_Task,'event':event.event ,'in':event['in'], 'task': event.action + '_' + event.event,'use': event.use,
+                     'what':event.what, 'how':event.how,'out':event.out,'actor': actorName,
+                     'TimeCreate' : fecha,'TimeTaken' : undefined,'TimeFinish' : undefined};
+
+    issuedTask.insert(emitTask);      
+    //_.map(_.filter(usernames,{'username': actorName}), function(socket){console.log(socketServer.server.sockets.connected[socket.socketid]); console.log('------------------');});
+    console.log('nuevo registro');
+    console.log(socketServer.nsp.sockets);
+    //console.log(socketServer);
+    _.map(_.filter(usernames,{'username': actorName}), function(socket){socketServer.in(socket.socketid).emit('sendtask', emitTask)});
+    //_.map(_.filter(usernames,{'username': actorName}), function(socket){socketServer.broadcast.to(socket.socketid).emit('sendtask', emitTask)});
+}
+
+var searchTask = function(event)
+{
   var fecha = new Date();
-  var emitTask = {'id': Id_Task, 
-                  'role': data[task.event].role, 
-                  'task': data[task.event].action,
-                  'use': data[task.event].use,
-                  'what':data[task.event].what,
-                  'how':data[task.event].how,
-                  'out':data[task.event].out,
-                  'actor': actorName,
-                  'TimeCreate' : fecha,
-                  'TimeTaken' : undefined,
-                  'TimeFinish' : undefined};
-  issuedTask.insert(emitTask);
-  if(usernames[actorName]){ socket.broadcast.to(usernames[actorName].socket).emit('sendtask', emitTask);} 
-  //if(usernames["RocioTamezJ"]){ socket.broadcast.to(usernames["RocioTamezJ"].socket).emit('sendtask', emitTask);}
+  var data = EventTaskRole.data;
+  var eventIn;
+  if(event.out) { eventIn  = event.out; }  
+  eventIn = eventIn || event['in'];
+   _.map(_.filter(data,{ 'event': event.event, 'in': eventIn }), sendTask);
 };
 
 var CustomerOrder_TAKEN = function (request, reply) 
@@ -251,18 +258,15 @@ var CustomerOrder_TAKEN = function (request, reply)
   var fecha = new Date();
   var id = parseInt(request.payload.id);
   var updateTask = issuedTask.find({'id':id});
-  updateTask[0].TimeTaken = fecha;
+  updateTask[0].TimeFinish = fecha;
   issuedTask.update(updateTask);
-  //_.find(issuedTask,function(task){ return task.id == request.payload.id; })["TimeFinish"] = fecha;
   CustomerOrder.insert(request.payload);
-  var eventOut = {"event":updateTask[0].out};
-  sendTask(socketServer,eventOut);
+  searchTask({'event':updateTask[0].event, 'out': updateTask[0].out});
 };
 
 //--------------------------------------------º-------------------------------------------------------------------------------------           
 //Router
 //---------------------------------------------------------------------------------------------------------------------------------           
-//server.route({ method: 'GET', path: '/events',  handler: function(request, reply) { reply.file("./www/events.html");  }}); //--CAMBIAR ESTA RU
 server.route({ method: 'POST', path: '/CustomerOrder_TAKEN',handler: CustomerOrder_TAKEN }  );
 server.route({ method: 'POST', path: '/getTask',handler: getTask} );
 server.route({ method: 'GET', path: '/events/{actor?}',handler: Events }); 
@@ -280,4 +284,4 @@ server.route({ method: 'GET', path: '/{param*}',handler: { directory:  { path: '
 //---------------------------------------------------------------------------------------------------------------------------------           
 //Inicializacion del server
 //---------------------------------------------------------------------------------------------------------------------------------           
-server.start(function () {console.log("Server starter " + __dirname, server.info.uri); })
+server.start(function () { console.log("Server starter " + __dirname, server.info.uri); })

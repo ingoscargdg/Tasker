@@ -1,0 +1,2 @@
+event,out,role,time
+CustomerOrder,NEW,phone-opr,00 00-59 13 * * 1-5

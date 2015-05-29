@@ -29,7 +29,7 @@ var TaskListItem = React.createClass(
     render: function ()
     {return (
             <li className="table-view-cell media" onClick = {this.SendTaskEvent} >
-                    {this.props.task.event}
+                    {this.props.task.event} {this.props.task.in}
             </li>
             );
     }

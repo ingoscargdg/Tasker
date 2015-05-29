@@ -1,0 +1,7 @@
+event,in,action,what,out,who,use,how
+CustomerOrder,NEW,Take,Tomar orden del cliente,TAKEN,sales-rep,create_CustomerOrder,
+CustomerOrder,TAKEN,Charge,Cobrar al cliente,CHARGED,accounting-clerk,BankCreditApproval,
+CustomerOrder,NOTIFY,Notify,Notificar rechazo de crèdito al cliente,NOTIFIED,customerService-rep,Detail_CustomerOrder,
+,,,,,,,
+,,,,,,,
+,,,,,,,

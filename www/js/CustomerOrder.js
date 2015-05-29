@@ -215,9 +215,12 @@ var App = React.createClass(
       while(match = regex.exec(url)) {params[match[1]] = match[2]; }
       var dia = new Date();
       var items = JSON.stringify(this.state.products);
+      var urlRed;
       var customerOrder = { id: params.id,"date": dia , "customer": this.state.customer, "shipping": this.state.Addrees , "items" : items};
-      $.ajax({url: "/CustomerOrder_TAKEN", type: "POST", data: JSON.stringify(customerOrder),
+      $.ajax({url: "/CustomerOrder_TAKEN", type: "POST", data: JSON.stringify(customerOrder), success: console.log('hecho'),
         contentType:"application/json; charset=utf-8", dataType:"json"});
+
+      window.location = '/tasks/RocioTamezJ?format=App';
     },
     CustomeronChange: function(customer)
     {

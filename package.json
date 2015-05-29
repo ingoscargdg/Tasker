@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "css-loader": "^0.12.1",
+    "csvtojson": "^0.3.21",
     "fixed-data-table": "^0.1.2",
     "hapi": "^8.4.0",
     "jsx-loader": "^0.13.2",
